@@ -39,12 +39,10 @@ def upload_file():
     try:
         subprocess.run(command, check=True)
 
-        return jsonify({"message": "File metadata removed", "file_path": f"/uploads/{filename}"}), 200
+        return send_file(file_path, as_attachment=True), 200
+
     except subprocess.CalledProcessError as e:
         return jsonify({"error": "Failed to process file", "details": str(e)}), 500
-    finally:
-        if os.path.exists(file_path):
-            os.remove(file_path)  
 
 @app.route('/uploads/<filename>', methods=['GET'])
 def get_cleaned_file(filename):
