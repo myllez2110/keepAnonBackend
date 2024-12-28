@@ -34,14 +34,12 @@ def upload_file():
     file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
     file.save(file_path)
 
-    # Cria um arquivo limpo
-    cleaned_file_path = os.path.join(app.config["UPLOAD_FOLDER"], f"cleaned_{filename}")
-    command = ["exiftool", "-all=", "-overwrite_original", "-out", cleaned_file_path, file_path]
+    command = ["exiftool", "-all=", "-overwrite_original", file_path]
 
     try:
         subprocess.run(command, check=True)
 
-        return jsonify({"message": "File metadata removed", "file_path": f"/uploads/cleaned_{filename}"}), 200
+        return jsonify({"message": "File metadata removed", "file_path": f"/uploads/{filename}"}), 200
     except subprocess.CalledProcessError as e:
         return jsonify({"error": "Failed to process file", "details": str(e)}), 500
     finally:
