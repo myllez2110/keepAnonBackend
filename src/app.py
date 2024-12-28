@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_file
 import os
 import subprocess
 from werkzeug.utils import secure_filename
@@ -34,11 +34,13 @@ def upload_file():
     file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
     file.save(file_path)
 
+    # Cria um arquivo limpo
     cleaned_file_path = os.path.join(app.config["UPLOAD_FOLDER"], f"cleaned_{filename}")
     command = ["exiftool", "-all=", "-overwrite_original", "-out", cleaned_file_path, file_path]
 
     try:
         subprocess.run(command, check=True)
+
         return jsonify({"message": "File metadata removed", "file_path": f"/uploads/cleaned_{filename}"}), 200
     except subprocess.CalledProcessError as e:
         return jsonify({"error": "Failed to process file", "details": str(e)}), 500
@@ -48,11 +50,13 @@ def upload_file():
 
 @app.route('/uploads/<filename>', methods=['GET'])
 def get_cleaned_file(filename):
-    try:
-        return send_from_directory(app.config["UPLOAD_FOLDER"], filename, as_attachment=True)
-    except FileNotFoundError:
+    cleaned_file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+
+    if os.path.exists(cleaned_file_path):
+        return send_file(cleaned_file_path, as_attachment=True)
+    else:
         return jsonify({"error": "File not found"}), 404
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000)) 
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
