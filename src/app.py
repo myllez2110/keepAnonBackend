@@ -1,11 +1,11 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 import os
 import subprocess
 from werkzeug.utils import secure_filename
-from flask_cors import CORS  
+from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app) 
+CORS(app)
 
 UPLOAD_FOLDER = "uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -38,5 +38,10 @@ def upload_file():
         if os.path.exists(file_path):
             os.remove(file_path)
 
+@app.route('/uploads/<filename>', methods=['GET'])
+def get_cleaned_file(filename):
+    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000)) 
+    app.run(host="0.0.0.0", port=port, debug=True)
