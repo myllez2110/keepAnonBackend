@@ -1,19 +1,17 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, send_file
 import os
-import subprocess
 from werkzeug.utils import secure_filename
-from flask_cors import CORS
+import imghdr
+import cv2
+from pixelate_faces import pixelate_faces, pixelate_faces_video_dnn
 
 app = Flask(__name__)
-CORS(app)
-
 UPLOAD_FOLDER = "uploads"
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+OUTPUT_FOLDER = "processed"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-
-ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'mp4', 'mov', 'avi'}
+ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'mp4', 'avi', 'mov'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -21,38 +19,34 @@ def allowed_file(filename):
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
-        return jsonify({"error": "No file provided"}), 400
+        return {"error": "No file provided"}, 400
 
     file = request.files["file"]
-    if file.filename == "":
-        return jsonify({"error": "No file selected"}), 400
+    anonymize_faces = request.form.get("anonymize_faces", "false").lower() == "true"
 
-    if not allowed_file(file.filename):
-        return jsonify({"error": "File type not allowed"}), 400
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        input_path = os.path.join(UPLOAD_FOLDER, filename)
+        output_path = os.path.join(OUTPUT_FOLDER, f"clean_{filename}")
 
-    filename = secure_filename(file.filename)
-    file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    file.save(file_path)
+        file.save(input_path)
 
-    command = ["exiftool", "-all=", "-overwrite_original", file_path]
+        file_type = imghdr.what(input_path)
 
-    try:
-        subprocess.run(command, check=True)
+        if file_type in ['jpeg', 'png', 'gif', 'bmp']:
+            if anonymize_faces:
+                pixelate_faces(input_path, output_path)
+            else:
+                os.rename(input_path, output_path)
+        else:
+            if anonymize_faces:
+                pixelate_faces_video_dnn(input_path, output_path)
+            else:
+                os.rename(input_path, output_path)
 
-        return send_file(file_path, as_attachment=True), 200
+        return send_file(output_path, as_attachment=True)
 
-    except subprocess.CalledProcessError as e:
-        return jsonify({"error": "Failed to process file", "details": str(e)}), 500
-
-@app.route('/uploads/<filename>', methods=['GET'])
-def get_cleaned_file(filename):
-    cleaned_file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-
-    if os.path.exists(cleaned_file_path):
-        return send_file(cleaned_file_path, as_attachment=True)
-    else:
-        return jsonify({"error": "File not found"}), 404
+    return {"error": "Invalid file type or file processing failed"}, 400
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(debug=True)
